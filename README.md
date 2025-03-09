@@ -64,7 +64,7 @@ Terraform will automatically install the provider. To specify a particular
 provider version when installing released providers, see the [Terraform
 documentation on provider versioning](https://www.terraform.io/docs/configuration/providers.html#version-provider-versions).
 
-Refer to the section below for instructions on how to to use a custom-built
+Refer to the section below for instructions on how to use a custom-built
 version of the provider.
 
 For either installation method, documentation about the provider specific
