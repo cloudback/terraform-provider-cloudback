@@ -65,6 +65,7 @@ jobs:
       group: 'terraform-provider-cloudback-test'
       cancel-in-progress: false
     strategy:
+      max-parallel: 1
       fail-fast: false
       matrix:
         # list whatever Terraform versions here you would like to support
