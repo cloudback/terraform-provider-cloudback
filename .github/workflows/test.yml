@@ -11,6 +11,9 @@ on:
     paths-ignore:
       - 'README.md'
 
+env:
+  CLOUDBACK_API_KEY: ${{ secrets.CLOUDBACK_API_KEY }}
+
 # Testing only needs permissions to read the repository contents.
 permissions:
   contents: read
