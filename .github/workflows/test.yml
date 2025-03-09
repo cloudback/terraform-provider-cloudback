@@ -1,10 +1,6 @@
 # Terraform Provider testing workflow.
 name: Tests
 
-concurrency:
-  group: 'terraform-provider-cloudback'
-  cancel-in-progress: false
-
 # This GitHub action runs your tests for each pull request and push.
 # Optionally, you can turn it on using a schedule for regular testing.
 on:
@@ -65,6 +61,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: 'terraform-provider-cloudback-test'
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix:
