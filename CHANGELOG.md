@@ -1,5 +1,9 @@
 # Cloudback Terraform Provider Changelog
 
+## 1.0.1 (2025-05-11)
+
+- Bump golang.org/x/crypto from 0.32.0 to 0.35.0 in /tools
+
 ## 1.0.0 (2025-03-09)
 
 ### Features
