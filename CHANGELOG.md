@@ -2,7 +2,8 @@
 
 ## 1.0.1 (2025-05-11)
 
-- Bump golang.org/x/crypto from 0.32.0 to 0.35.0 in /tools
+- Bump golang.org/x/crypto to v0.35.0 in /tools
+- Bump golang.org/x/net to v0.38.0
 
 ## 1.0.0 (2025-03-09)
 
