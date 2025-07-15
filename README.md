@@ -1,3 +1,5 @@
+[![Build Status](https://app.cloudback.it/badge/cloudback/terraform-provider-cloudback)](https://cloudback.it)
+
 # Cloudback Terraform Provider
 
 - Website: https://registry.terraform.io/providers/cloudback/cloudback
