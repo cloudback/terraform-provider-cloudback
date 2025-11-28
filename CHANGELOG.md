@@ -1,5 +1,9 @@
 # Cloudback Terraform Provider Changelog
 
+## 1.0.4 (2025-11-22)
+
+- Update backup definition resource: Add AzureDevOps to platform examples and adjust schema for subject_type and subject_name fields.
+
 ## 1.0.3 (2025-07-15)
 
 - Security updates for dependencies

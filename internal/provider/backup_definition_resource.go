@@ -26,10 +26,12 @@ type BackupDefinitionResource struct {
 
 // BackupDefinitionResourceModel describes the resource data model.
 type BackupDefinitionResourceModel struct {
-	Platform   types.String                  `tfsdk:"platform"`
-	Account    types.String                  `tfsdk:"account"`
-	Repository types.String                  `tfsdk:"repository"`
-	Settings   BackupDefinitionSettingsModel `tfsdk:"settings"`
+	Platform    types.String                  `tfsdk:"platform"`
+	Account     types.String                  `tfsdk:"account"`
+	SubjectType types.String                  `tfsdk:"subject_type"`
+	SubjectName types.String                  `tfsdk:"subject_name"`
+	Repository  types.String                  `tfsdk:"repository"`
+	Settings    BackupDefinitionSettingsModel `tfsdk:"settings"`
 }
 
 type BackupDefinitionSettingsModel struct {
@@ -49,16 +51,24 @@ func (r *BackupDefinitionResource) Schema(ctx context.Context, req resource.Sche
 
 		Attributes: map[string]schema.Attribute{
 			"platform": schema.StringAttribute{
-				MarkdownDescription: "Platform name (e.g., GitHub, GitLab)",
+				MarkdownDescription: "Platform name (e.g., GitHub, GitLab, AzureDevOps)",
 				Required:            true,
 			},
 			"account": schema.StringAttribute{
 				MarkdownDescription: "Account name",
 				Required:            true,
 			},
+			"subject_type": schema.StringAttribute{
+				MarkdownDescription: "Subject type (e.g., Repository, Project)",
+				Optional:            true,
+			},
+			"subject_name": schema.StringAttribute{
+				MarkdownDescription: "Subject name (repository name, project name, etc.)",
+				Optional:            true,
+			},
 			"repository": schema.StringAttribute{
-				MarkdownDescription: "Repository name",
-				Required:            true,
+				MarkdownDescription: "Repository name (deprecated: use subject_type and subject_name instead)",
+				Optional:            true,
 			},
 			"settings": schema.SingleNestedAttribute{
 				Required: true,
@@ -115,10 +125,29 @@ func (r *BackupDefinitionResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	// Determine subject_type and subject_name for API call (backward compatibility)
+	var subjectType, subjectName string
+	if !data.SubjectType.IsNull() && !data.SubjectName.IsNull() {
+		// New format: use subject fields directly
+		subjectType = data.SubjectType.ValueString()
+		subjectName = data.SubjectName.ValueString()
+	} else if !data.Repository.IsNull() {
+		// Old format: derive from repository
+		subjectType = "Repository"
+		subjectName = data.Repository.ValueString()
+	} else {
+		resp.Diagnostics.AddError(
+			"Missing Required Fields",
+			"Either 'repository' or both 'subject_type' and 'subject_name' must be provided.",
+		)
+		return
+	}
+
 	err := r.client.UpdateBackupDefinition(
 		data.Platform.ValueString(),
 		data.Account.ValueString(),
-		data.Repository.ValueString(),
+		subjectType,
+		subjectName,
 		BackupDefinitionSettings{
 			Enabled:   data.Settings.Enabled.ValueBool(),
 			Schedule:  data.Settings.Schedule.ValueString(),
@@ -148,7 +177,17 @@ func (r *BackupDefinitionResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	backupDefinition, err := r.client.GetBackupDefinition(data.Platform.ValueString(), data.Account.ValueString(), data.Repository.ValueString())
+	// Determine subject_type and subject_name for API call (backward compatibility)
+	var subjectType, subjectName string
+	if !data.SubjectType.IsNull() && !data.SubjectName.IsNull() {
+		subjectType = data.SubjectType.ValueString()
+		subjectName = data.SubjectName.ValueString()
+	} else if !data.Repository.IsNull() {
+		subjectType = "Repository"
+		subjectName = data.Repository.ValueString()
+	}
+
+	backupDefinition, err := r.client.GetBackupDefinition(data.Platform.ValueString(), data.Account.ValueString(), subjectType, subjectName)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read backup definition, got error: %s", err))
 		return
@@ -175,10 +214,29 @@ func (r *BackupDefinitionResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
+	// Determine subject_type and subject_name for API call (backward compatibility)
+	var subjectType, subjectName string
+	if !data.SubjectType.IsNull() && !data.SubjectName.IsNull() {
+		// New format: use subject fields directly
+		subjectType = data.SubjectType.ValueString()
+		subjectName = data.SubjectName.ValueString()
+	} else if !data.Repository.IsNull() {
+		// Old format: derive from repository
+		subjectType = "Repository"
+		subjectName = data.Repository.ValueString()
+	} else {
+		resp.Diagnostics.AddError(
+			"Missing Required Fields",
+			"Either 'repository' or both 'subject_type' and 'subject_name' must be provided.",
+		)
+		return
+	}
+
 	err := r.client.UpdateBackupDefinition(
 		data.Platform.ValueString(),
 		data.Account.ValueString(),
-		data.Repository.ValueString(),
+		subjectType,
+		subjectName,
 		BackupDefinitionSettings{
 			Enabled:   data.Settings.Enabled.ValueBool(),
 			Schedule:  data.Settings.Schedule.ValueString(),
@@ -208,10 +266,21 @@ func (r *BackupDefinitionResource) Delete(ctx context.Context, req resource.Dele
 		return
 	}
 
+	// Determine subject_type and subject_name for API call (backward compatibility)
+	var subjectType, subjectName string
+	if !data.SubjectType.IsNull() && !data.SubjectName.IsNull() {
+		subjectType = data.SubjectType.ValueString()
+		subjectName = data.SubjectName.ValueString()
+	} else if !data.Repository.IsNull() {
+		subjectType = "Repository"
+		subjectName = data.Repository.ValueString()
+	}
+
 	err := r.client.UpdateBackupDefinition(
 		data.Platform.ValueString(),
 		data.Account.ValueString(),
-		data.Repository.ValueString(),
+		subjectType,
+		subjectName,
 		BackupDefinitionSettings{
 			Enabled: false,
 		},
@@ -231,23 +300,57 @@ func (r *BackupDefinitionResource) Delete(ctx context.Context, req resource.Dele
 func (r *BackupDefinitionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	idParts := strings.Split(req.ID, "/")
 
-	if len(idParts) != 3 || idParts[0] == "" || idParts[1] == "" || idParts[2] == "" {
+	var data BackupDefinitionResourceModel
+
+	// Support both old format (platform/account/repository) and new format (platform/account/subject_type/subject_name)
+	if len(idParts) == 3 {
+		// Old format: platform/account/repository - assume Repository subject type
+		if idParts[0] == "" || idParts[1] == "" || idParts[2] == "" {
+			resp.Diagnostics.AddError(
+				"Unexpected Import Identifier",
+				fmt.Sprintf("Expected import identifier with format: platform/account/repository or platform/account/subject_type/subject_name. Got: %q", req.ID),
+			)
+			return
+		}
+		data.Platform = types.StringValue(idParts[0])
+		data.Account = types.StringValue(idParts[1])
+		data.Repository = types.StringValue(idParts[2])
+	} else if len(idParts) == 4 {
+		// New format: platform/account/subject_type/subject_name
+		if idParts[0] == "" || idParts[1] == "" || idParts[2] == "" || idParts[3] == "" {
+			resp.Diagnostics.AddError(
+				"Unexpected Import Identifier",
+				fmt.Sprintf("Expected import identifier with format: platform/account/repository or platform/account/subject_type/subject_name. Got: %q", req.ID),
+			)
+			return
+		}
+		data.Platform = types.StringValue(idParts[0])
+		data.Account = types.StringValue(idParts[1])
+		data.SubjectType = types.StringValue(idParts[2])
+		data.SubjectName = types.StringValue(idParts[3])
+	} else {
 		resp.Diagnostics.AddError(
 			"Unexpected Import Identifier",
-			fmt.Sprintf("Expected import identifier with format: platform/account/repository. Got: %q", req.ID),
+			fmt.Sprintf("Expected import identifier with format: platform/account/repository or platform/account/subject_type/subject_name. Got: %q", req.ID),
 		)
 		return
 	}
 
-	var data BackupDefinitionResourceModel
-	data.Platform = types.StringValue(idParts[0])
-	data.Account = types.StringValue(idParts[1])
-	data.Repository = types.StringValue(idParts[2])
+	// Determine subject_type and subject_name for API call
+	var subjectType, subjectName string
+	if !data.SubjectType.IsNull() && !data.SubjectName.IsNull() {
+		subjectType = data.SubjectType.ValueString()
+		subjectName = data.SubjectName.ValueString()
+	} else if !data.Repository.IsNull() {
+		subjectType = "Repository"
+		subjectName = data.Repository.ValueString()
+	}
 
 	backupDefinition, err := r.client.GetBackupDefinition(
 		data.Platform.ValueString(),
 		data.Account.ValueString(),
-		data.Repository.ValueString())
+		subjectType,
+		subjectName)
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read backup definition, got error: %s", err))
@@ -266,13 +369,22 @@ func (r *BackupDefinitionResource) ImportState(ctx context.Context, req resource
 }
 
 func (r *BackupDefinitionResource) LogUpdatedBackupDefinition(ctx context.Context, data BackupDefinitionResourceModel) {
-	tflog.Trace(ctx, "updated backup definition", map[string]interface{}{
-		"platform":   data.Platform.ValueString(),
-		"account":    data.Account.ValueString(),
-		"repository": data.Repository.ValueString(),
-		"enabled":    data.Settings.Enabled.ValueBool(),
-		"schedule":   data.Settings.Schedule.ValueString(),
-		"storage":    data.Settings.Storage.ValueString(),
-		"retention":  data.Settings.Retention.ValueString(),
-	})
+	logData := map[string]interface{}{
+		"platform":  data.Platform.ValueString(),
+		"account":   data.Account.ValueString(),
+		"enabled":   data.Settings.Enabled.ValueBool(),
+		"schedule":  data.Settings.Schedule.ValueString(),
+		"storage":   data.Settings.Storage.ValueString(),
+		"retention": data.Settings.Retention.ValueString(),
+	}
+	if !data.SubjectType.IsNull() {
+		logData["subject_type"] = data.SubjectType.ValueString()
+	}
+	if !data.SubjectName.IsNull() {
+		logData["subject_name"] = data.SubjectName.ValueString()
+	}
+	if !data.Repository.IsNull() {
+		logData["repository"] = data.Repository.ValueString()
+	}
+	tflog.Trace(ctx, "updated backup definition", logData)
 }

@@ -11,10 +11,11 @@ type CloudbackClient struct {
 }
 
 type BackupDefinition struct {
-	Platform   string                   `json:"platform"`
-	Account    string                   `json:"account"`
-	Repository string                   `json:"repository"`
-	Settings   BackupDefinitionSettings `json:"settings"`
+	Platform    string                   `json:"platform"`
+	Account     string                   `json:"account"`
+	SubjectType string                   `json:"subjectType"`
+	SubjectName string                   `json:"subjectName"`
+	Settings    BackupDefinitionSettings `json:"settings"`
 }
 
 type BackupDefinitionSettings struct {
@@ -38,18 +39,19 @@ func NewCloudbackClient(baseURL, apiKey string) *CloudbackClient {
 	}
 }
 
-func (c *CloudbackClient) GetBackupDefinition(platform, account, repository string) (*BackupDefinition, error) {
+func (c *CloudbackClient) GetBackupDefinition(platform, account, subjectType, subjectName string) (*BackupDefinition, error) {
 
 	var response BackupDefinition
 
 	resp, err := c.restyClient.R().
 		SetBody(map[string]string{
-			"platform":   platform,
-			"account":    account,
-			"repository": repository,
+			"platform":    platform,
+			"account":     account,
+			"subjectType": subjectType,
+			"subjectName": subjectName,
 		}).
 		SetResult(&response).
-		Post("/api/ops/definition/get")
+		Post("/ops/definition/get")
 
 	if err != nil {
 		return nil, err
@@ -62,15 +64,16 @@ func (c *CloudbackClient) GetBackupDefinition(platform, account, repository stri
 	return &response, nil
 }
 
-func (c *CloudbackClient) UpdateBackupDefinition(platform, account, repository string, settings BackupDefinitionSettings) error {
+func (c *CloudbackClient) UpdateBackupDefinition(platform, account, subjectType, subjectName string, settings BackupDefinitionSettings) error {
 	resp, err := c.restyClient.R().
 		SetBody(&BackupDefinition{
-			Platform:   platform,
-			Account:    account,
-			Repository: repository,
-			Settings:   settings,
+			Platform:    platform,
+			Account:     account,
+			SubjectType: subjectType,
+			SubjectName: subjectName,
+			Settings:    settings,
 		}).
-		Post("/api/ops/definition/update")
+		Post("/ops/definition/update")
 
 	if err != nil {
 		return err

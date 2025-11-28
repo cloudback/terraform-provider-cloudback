@@ -18,9 +18,14 @@ Cloudback backup definition resource
 ### Required
 
 - `account` (String) Account name
-- `platform` (String) Platform name (e.g., GitHub, GitLab)
-- `repository` (String) Repository name
+- `platform` (String) Platform name (e.g., GitHub, GitLab, AzureDevOps)
 - `settings` (Attributes) (see [below for nested schema](#nestedatt--settings))
+
+### Optional
+
+- `repository` (String) Repository name (deprecated: use subject_type and subject_name instead)
+- `subject_name` (String) Subject name (repository name, project name, etc.)
+- `subject_type` (String) Subject type (e.g., Repository, Project)
 
 <a id="nestedatt--settings"></a>
 ### Nested Schema for `settings`
