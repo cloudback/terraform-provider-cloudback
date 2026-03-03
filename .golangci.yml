@@ -14,7 +14,6 @@ linters:
     - copyloopvar
     - forcetypeassert
     - godot
-    - gofmt
     - gosimple
     - ineffassign
     - makezero
@@ -27,3 +26,7 @@ linters:
     - unparam
     - unused
     - govet
+
+formatters:
+  enable:
+    - gofmt
